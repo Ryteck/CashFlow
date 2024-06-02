@@ -1,0 +1,5 @@
+# External dependencies
+node_modules/
+
+# Next.js build and cache
+.next/
