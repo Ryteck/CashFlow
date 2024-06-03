@@ -17,8 +17,10 @@ import {
 	CircleMinusIcon,
 	CirclePlusIcon,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { FC } from "react";
-import ApexCharts from "react-apexcharts";
+
+const ApexCharts = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 const Page: FC = () => {
 	const query = useQuery<Budget[]>({
