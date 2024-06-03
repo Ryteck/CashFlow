@@ -4,7 +4,9 @@ import type { Budget } from "@prisma/client";
 
 export default class BudgetRepository extends Repository {
 	public list(): Promise<Budget[]> {
-		return this.prismaClient.budget.findMany();
+		return this.prismaClient.budget.findMany({
+			orderBy: { createdAt: "asc" },
+		});
 	}
 
 	public find(id: string): Promise<Budget> {
