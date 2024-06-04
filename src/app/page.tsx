@@ -113,6 +113,7 @@ const Page: FC = () => {
 				</Card>
 
 				<ApexCharts
+					width={480}
 					height={200}
 					type="area"
 					options={{

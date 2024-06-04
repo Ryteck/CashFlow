@@ -1,12 +1,15 @@
+import { categorySchema } from "@/schemas/category";
 import { BudgetType } from "@prisma/client";
 import { z } from "zod";
 
-const budgetSchema = z.object({
+export const budgetSchema = z.object({
 	id: z.string().uuid(),
 
 	title: z.string(),
 	description: z.string(),
+	categoryId: z.string().nullable(),
 	amount: z.number(),
+	day: z.date().or(z.string().transform((arg) => new Date(arg))),
 
 	type: z.nativeEnum(BudgetType),
 
@@ -25,5 +28,10 @@ export const updateBudgetSchema = budgetSchema.omit({
 	updatedAt: true,
 });
 
+export const selectBudgetSchema = budgetSchema.merge(
+	z.object({ category: categorySchema.nullable() }),
+);
+
 export type StoreBudgetSchema = z.infer<typeof storeBudgetSchema>;
 export type UpdateBudgetSchema = z.infer<typeof updateBudgetSchema>;
+export type SelectBudgetSchema = z.infer<typeof selectBudgetSchema>;

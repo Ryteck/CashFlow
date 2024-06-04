@@ -1,4 +1,5 @@
 import "@/styles/tailwind.css";
+import "react-color-palette/css";
 
 import { QueryProviderComponent } from "@/components/providers/query";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
