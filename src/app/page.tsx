@@ -1,6 +1,7 @@
 "use client";
 
 import { BudgetFormComponent } from "@/components/form/budget";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Table,
@@ -10,7 +11,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { type Budget, BudgetType } from "@prisma/client";
+import { isTextWhite } from "@/lib/luminance";
+import type { SelectBudgetSchema } from "@/schemas/budget";
+import { BudgetType } from "@prisma/client";
 import { useQuery } from "@tanstack/react-query";
 import {
 	CircleDollarSign,
@@ -23,7 +26,7 @@ import type { FC } from "react";
 const ApexCharts = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 const Page: FC = () => {
-	const query = useQuery<Budget[]>({
+	const query = useQuery<SelectBudgetSchema[]>({
 		queryKey: ["budgets"],
 		queryFn: () => fetch("/api/budget").then((response) => response.json()),
 		placeholderData: (previousData) => previousData,
@@ -65,6 +68,7 @@ const Page: FC = () => {
 						<TableHeader>
 							<TableRow>
 								<TableHead>Invoice</TableHead>
+								<TableHead>Category</TableHead>
 								<TableHead className="text-right">Amount</TableHead>
 								<TableHead className="text-center">Access</TableHead>
 							</TableRow>
@@ -75,6 +79,28 @@ const Page: FC = () => {
 									<TableCell className="flex flex-col">
 										<p className="font-bold text-xl">{earning.title}</p>
 										<p className="text-xs">{earning.description}</p>
+									</TableCell>
+
+									<TableCell>
+										{earning.category ? (
+											<Badge
+												style={{
+													color: isTextWhite(earning.category.color)
+														? "white"
+														: "black",
+													backgroundColor: earning.category.color,
+												}}
+											>
+												{earning.category.name}
+											</Badge>
+										) : (
+											<Badge
+												variant="outline"
+												className="text-sm text-muted-foreground"
+											>
+												Empty
+											</Badge>
+										)}
 									</TableCell>
 
 									<TableCell className="text-right">
@@ -185,6 +211,7 @@ const Page: FC = () => {
 						<TableHeader>
 							<TableRow>
 								<TableHead>Invoice</TableHead>
+								<TableHead>Category</TableHead>
 								<TableHead className="text-right">Amount</TableHead>
 								<TableHead className="text-center">Access</TableHead>
 							</TableRow>
@@ -195,6 +222,21 @@ const Page: FC = () => {
 									<TableCell className="flex flex-col">
 										<p className="font-bold text-xl">{expense.title}</p>
 										<p className="text-xs">{expense.description}</p>
+									</TableCell>
+
+									<TableCell>
+										{expense.category && (
+											<Badge
+												style={{
+													color: isTextWhite(expense.category.color)
+														? "white"
+														: "black",
+													backgroundColor: expense.category.color,
+												}}
+											>
+												{expense.category.name}
+											</Badge>
+										)}
 									</TableCell>
 
 									<TableCell className="text-right">

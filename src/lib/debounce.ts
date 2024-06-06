@@ -6,7 +6,7 @@ export function debounceFactory<T extends DebounceFunction>(func: T): T {
 
 	const debouncedFunction = (...args: Parameters<T>): void => {
 		if (timeout !== null) clearTimeout(timeout);
-		timeout = setTimeout(() => func(...args), 300);
+		timeout = setTimeout(() => func(...args), 100);
 	};
 
 	return debouncedFunction as T;

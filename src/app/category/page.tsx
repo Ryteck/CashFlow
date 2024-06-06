@@ -48,7 +48,7 @@ const Page: FC = () => {
 	});
 
 	const onSubmit = form.handleSubmit(async (data) => {
-		await fetch("/api/category", {
+		const response = await fetch("/api/category", {
 			method: "POST",
 			body: JSON.stringify({
 				...data,
@@ -58,16 +58,20 @@ const Page: FC = () => {
 
 		await queryClient.invalidateQueries({ queryKey: ["categories"] });
 
+		const { id } = await response.json();
+		setSelectedBadge(id);
+
 		form.resetField("name");
 	});
 
 	const color = isTextWhite(form.getValues("color")) ? "white" : "black";
+	const [colorPickerValue, setColorPickerValue] = useState("#000000");
 
 	return (
-		<main className="flex space-y-8 p-8 gap-8">
+		<main className="flex space-y-8 p-4 gap-8">
 			<div className="w-96 min-w-[24rem]">
 				<Form {...form}>
-					<form onSubmit={onSubmit} className="space-y-8">
+					<form onSubmit={onSubmit} className="space-y-2">
 						<FormField
 							control={form.control}
 							name="name"
@@ -92,11 +96,38 @@ const Page: FC = () => {
 								<FormItem>
 									<FormLabel>Color Picker</FormLabel>
 									<FormControl>
-										<ColorPickerComponent onChange={field.onChange} />
+										<ColorPickerComponent
+											value={colorPickerValue}
+											onChange={field.onChange}
+										/>
 									</FormControl>
 								</FormItem>
 							)}
 						/>
+
+						{selectedBadge !== null && (
+							<Button
+								onClick={() => {
+									fetch(`/api/category/${selectedBadge}`, {
+										method: "DELETE",
+									})
+										.then(() =>
+											queryClient.invalidateQueries({
+												queryKey: ["categories"],
+											}),
+										)
+										.then(() => {
+											setSelectedBadge(null);
+											form.reset({ name: "", color: "#000000" });
+										});
+								}}
+								className="w-full"
+								variant="destructive"
+								type="button"
+							>
+								Delete
+							</Button>
+						)}
 
 						<Button
 							className="w-full"
@@ -109,20 +140,24 @@ const Page: FC = () => {
 				</Form>
 			</div>
 
-			<div className="flex items-start justify-start flex-wrap place-content-start">
+			<div className="flex items-start justify-start flex-wrap place-content-start gap-1">
 				{query.data?.map((category) => (
 					<div
 						key={category.id}
 						style={{
-							borderColor: form.watch("color"),
-							borderStyle: selectedBadge === category.id ? "dashed" : "none",
+							borderColor:
+								selectedBadge === category.id
+									? form.watch("color")
+									: "transparent",
 						}}
-						className="border-2 rounded-full flex items-center justify-center p-0.5"
+						className="border-2 border-dashed rounded-full flex items-center justify-center p-0.5"
 					>
 						<Badge
 							className="min-h-8 text-center"
 							onClick={() => {
+								setColorPickerValue(category.color);
 								setSelectedBadge(category.id);
+								form.reset(category);
 							}}
 							variant="outline"
 							style={{
@@ -154,15 +189,17 @@ const Page: FC = () => {
 
 				<div
 					style={{
-						borderColor: form.watch("color"),
-						borderStyle: selectedBadge === null ? "dashed" : "none",
+						borderColor:
+							selectedBadge === null ? form.watch("color") : "transparent",
 					}}
-					className="border-2 rounded-full flex items-center justify-center p-0.5"
+					className="border-2 border-dashed rounded-full flex items-center justify-center p-0.5"
 				>
 					<Badge
 						className="min-h-8 text-center"
 						onClick={() => {
+							setColorPickerValue("#000000");
 							setSelectedBadge(null);
+							form.reset({ name: "", color: "#000000" });
 						}}
 						variant="outline"
 						style={{

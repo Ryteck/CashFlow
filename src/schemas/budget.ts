@@ -7,7 +7,7 @@ export const budgetSchema = z.object({
 
 	title: z.string(),
 	description: z.string(),
-	categoryId: z.string().nullable(),
+	categoryId: z.string(),
 	amount: z.number(),
 	day: z.date().or(z.string().transform((arg) => new Date(arg))),
 

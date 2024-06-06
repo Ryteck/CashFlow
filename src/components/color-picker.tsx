@@ -5,11 +5,12 @@ import { type FC, useEffect } from "react";
 import { ColorPicker, useColor } from "react-color-palette";
 
 interface Props {
+	value: string;
 	onChange: (value: string) => void;
 }
 
-export const ColorPickerComponent: FC<Props> = ({ onChange }) => {
-	const [selColor, setSelColor] = useColor("#000000");
+export const ColorPickerComponent: FC<Props> = ({ value, onChange }) => {
+	const [selColor, setSelColor] = useColor(value);
 
 	const debounceOnChange = debounceFactory(onChange);
 
