@@ -9,13 +9,6 @@ interface Segments {
 
 type Params = RouteParams<Segments>;
 
-export async function GET(request: Request, { params }: Params) {
-	const budgetRepository = new BudgetRepository();
-	const budget = await budgetRepository.find(params.id);
-
-	return Response.json(budget);
-}
-
 export async function DELETE(request: Request, { params }: Params) {
 	const budgetRepository = new BudgetRepository();
 	const budget = await budgetRepository.destroy(params.id);

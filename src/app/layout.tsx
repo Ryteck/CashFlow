@@ -3,6 +3,7 @@ import "react-color-palette/css";
 
 import { QueryProviderComponent } from "@/components/providers/query";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Toaster } from "@/components/ui/sonner";
 import type { Metadata } from "next";
 import type { FC, PropsWithChildren } from "react";
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 const Layout: FC<PropsWithChildren> = ({ children }) => (
-	<html lang="en">
+	<html lang="pt-BR">
 		<body>
 			<QueryProviderComponent>
 				<ScrollArea className="w-screen h-screen">
@@ -22,6 +23,8 @@ const Layout: FC<PropsWithChildren> = ({ children }) => (
 					<ScrollBar orientation="horizontal" />
 				</ScrollArea>
 			</QueryProviderComponent>
+
+			<Toaster theme="light" richColors />
 		</body>
 	</html>
 );

@@ -43,4 +43,22 @@ model Budget {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  cycleId String?
+  cycle   Cycle?  @relation(fields: cycleId, references: id)
+}
+
+enum CyclePeriod {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+model Cycle {
+  id     String      @id @default(uuid())
+  end    DateTime?
+  period CyclePeriod
+
+  budgets Budget[]
 }

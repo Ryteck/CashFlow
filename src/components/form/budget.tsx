@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -39,25 +40,44 @@ import {
 import { isTextWhite } from "@/lib/luminance";
 import { cn } from "@/lib/utils";
 import type { SelectBudgetSchema } from "@/schemas/budget";
+import type { UpsertCycleSchema } from "@/schemas/cycle";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BudgetType, type Category } from "@prisma/client";
+import { BudgetType, type Category, CyclePeriod } from "@prisma/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, PencilIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const AMOUNT_LIMIT = 999_999_999;
 
 const formSchema = z.object({
-	title: z.string().min(1, "Title is required"),
-	description: z.string(),
-	amount: z.number().positive().max(AMOUNT_LIMIT),
+	title: z.string().min(1, "Nome é obrigatório"),
+	description: z.string().min(1, "Descrição é obrigatório"),
+	amount: z
+		.string()
+		.transform(Number)
+		.or(z.number())
+		.refine((arg) => arg > 0, "O valor precisa ser maior que 0")
+		.refine(
+			(arg) => arg <= AMOUNT_LIMIT,
+			`O valor máximo é de ${AMOUNT_LIMIT.toLocaleString("pt-BR", {
+				style: "currency",
+				currency: "BRL",
+			})}`,
+		),
+
 	day: z.date(),
 	type: z.nativeEnum(BudgetType),
-	categoryId: z.string().uuid(),
+	categoryId: z.string().uuid("Selecione uma categoria válida"),
+
+	// cycle
+	enableCycle: z.boolean(),
+	period: z.nativeEnum(CyclePeriod),
+	end: z.date().optional(),
 });
 
 interface Props {
@@ -75,15 +95,26 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 		placeholderData: (previousData) => previousData,
 	});
 
+	const today = new Date();
+
+	today.setHours(0);
+	today.setMinutes(0);
+	today.setSeconds(0);
+	today.setMilliseconds(0);
+
 	const form = useForm<z.infer<typeof formSchema>>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
 			title: budget?.title ?? "",
 			description: budget?.description ?? "",
 			amount: budget?.amount ?? 0,
-			day: budget ? new Date(budget.day) : new Date(),
+			day: budget ? new Date(budget.day) : today,
 			type: budget?.type ?? BudgetType.INPUT,
 			categoryId: budget?.categoryId ?? "",
+
+			enableCycle: false,
+			period: CyclePeriod.MONTH,
+			end: undefined,
 		},
 	});
 
@@ -91,19 +122,40 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 		if (isDialogOpen) form.reset();
 	}, [isDialogOpen, form]);
 
-	const onSubmit = form.handleSubmit(async (data) => {
-		await fetch("/api/budget", {
-			body: JSON.stringify({ ...data, id: budget?.id }),
-			method: budget ? "PUT" : "POST",
-		});
+	const onSubmit = form.handleSubmit(
+		async ({ enableCycle, period, end, ...data }) => {
+			if (end && end <= data.day) {
+				const message = "Data de encerramento do ciclo inválida";
 
-		if (!budget) {
-			setIsDialogOpen(false);
-			form.reset();
-		}
+				const description =
+					"Se preenchida, a data de encerramento precisa ser maior que a data do orçamento";
 
-		await queryClient.invalidateQueries({ queryKey: ["budgets"] });
-	});
+				toast.warning(message, { description });
+
+				return;
+			}
+
+			const cycle: UpsertCycleSchema = enableCycle ? { period, end } : null;
+
+			await fetch("/api/budget", {
+				body: JSON.stringify({ ...data, cycle, id: budget?.id }),
+				method: "POST",
+			});
+
+			if (!budget) {
+				setIsDialogOpen(false);
+				form.reset();
+			}
+
+			await Promise.all(
+				["budgets", "totals"].map((arg) =>
+					queryClient.invalidateQueries({
+						queryKey: [arg],
+					}),
+				),
+			);
+		},
+	);
 
 	return (
 		<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -113,33 +165,34 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 					variant={budget ? "ghost" : "default"}
 					size={budget ? "icon" : "default"}
 				>
-					{budget ? <PencilIcon /> : "Record new budget"}
+					{budget ? <PencilIcon /> : "Cadastrar novo orçamento"}
 				</Button>
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Edit profile</DialogTitle>
+					<DialogTitle>Orçamento</DialogTitle>
 					<DialogDescription>
-						Make changes to your profile here. Click save when you're done.
+						{`${
+							budget
+								? "Faça alterações no seu orçamento aqui"
+								: "Cadastre seu orçamento aqui"
+						}. Clique em salvar quando terminar.`}
 					</DialogDescription>
 				</DialogHeader>
 
-				<ScrollArea className="max-h-96 pr-4">
-					<div className="px-2">
+				<ScrollArea className="max-h-96">
+					<div className="p-8">
 						<Form {...form}>
-							<form id="budget-form" onSubmit={onSubmit} className="space-y-8">
+							<form id="budget-form" onSubmit={onSubmit} className="space-y-4">
 								<FormField
 									control={form.control}
 									name="title"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>Title</FormLabel>
+											<FormLabel>Nome *</FormLabel>
 											<FormControl>
-												<Input placeholder="Title" {...field} />
+												<Input placeholder="Nome" {...field} />
 											</FormControl>
-											<FormDescription>
-												This is your public display name.
-											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -150,13 +203,10 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 									name="description"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>Description</FormLabel>
+											<FormLabel>Descrição *</FormLabel>
 											<FormControl>
-												<Input placeholder="Description" {...field} />
+												<Input placeholder="Descrição" {...field} />
 											</FormControl>
-											<FormDescription>
-												This is your public display name.
-											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -167,7 +217,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 									name="day"
 									render={({ field }) => (
 										<FormItem className="flex flex-col">
-											<FormLabel>Data</FormLabel>
+											<FormLabel>Dia *</FormLabel>
 											<Popover>
 												<PopoverTrigger asChild>
 													<FormControl>
@@ -181,7 +231,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 															{field.value ? (
 																format(field.value, "PPP", { locale: ptBR })
 															) : (
-																<span>Pick a date</span>
+																<span>Selecione uma data</span>
 															)}
 															<CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
 														</Button>
@@ -196,7 +246,6 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 													/>
 												</PopoverContent>
 											</Popover>
-											<FormDescription>Your date.</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -207,27 +256,15 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 									name="amount"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>Amount</FormLabel>
+											<FormLabel>Valor *</FormLabel>
 											<FormControl>
 												<Input
-													type="text"
+													type="number"
 													placeholder="Amount"
 													value={field.value}
-													onChange={(e) => {
-														const value = e.target.value;
-														const newValue = Number(value);
-														const hasDot = value[value.length - 1] === ".";
-
-														if (Number.isNaN(newValue)) return;
-
-														if (hasDot) field.onChange(`${newValue}.`);
-														else field.onChange(newValue);
-													}}
+													onChange={field.onChange}
 												/>
 											</FormControl>
-											<FormDescription>
-												This is your public display name.
-											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -238,7 +275,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 									name="type"
 									render={({ field }) => (
 										<FormItem className="space-y-3">
-											<FormLabel>Type</FormLabel>
+											<FormLabel>Tipo de orçamento *</FormLabel>
 											<FormControl>
 												<RadioGroup
 													onValueChange={field.onChange}
@@ -249,17 +286,13 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 														<FormControl>
 															<RadioGroupItem value={BudgetType.INPUT} />
 														</FormControl>
-														<FormLabel className="font-normal">
-															Earning
-														</FormLabel>
+														<FormLabel className="font-normal">Ganho</FormLabel>
 													</FormItem>
 													<FormItem className="flex items-center space-x-3 space-y-0">
 														<FormControl>
 															<RadioGroupItem value={BudgetType.OUTPUT} />
 														</FormControl>
-														<FormLabel className="font-normal">
-															Expense
-														</FormLabel>
+														<FormLabel className="font-normal">Gasto</FormLabel>
 													</FormItem>
 												</RadioGroup>
 											</FormControl>
@@ -273,7 +306,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 									name="categoryId"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>Category</FormLabel>
+											<FormLabel>Categoria *</FormLabel>
 
 											<Select
 												onValueChange={field.onChange}
@@ -281,7 +314,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 											>
 												<FormControl>
 													<SelectTrigger>
-														<SelectValue placeholder="Select a category" />
+														<SelectValue placeholder="Selecione uma categoria" />
 													</SelectTrigger>
 												</FormControl>
 												<SelectContent>
@@ -301,18 +334,138 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 													))}
 												</SelectContent>
 											</Select>
-
-											<FormDescription>
-												You can manage email addresses in your.
-											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
 								/>
+
+								<FormField
+									control={form.control}
+									name="enableCycle"
+									render={({ field }) => (
+										<FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+											<FormControl>
+												<Checkbox
+													checked={field.value}
+													onCheckedChange={field.onChange}
+												/>
+											</FormControl>
+											<div className="space-y-1 leading-none">
+												<FormLabel>Deseja habilitar ciclos?</FormLabel>
+												<FormDescription>
+													Repetições agendadas por períodos
+												</FormDescription>
+											</div>
+										</FormItem>
+									)}
+								/>
+
+								{form.getValues("enableCycle") && (
+									<>
+										<FormField
+											control={form.control}
+											name="period"
+											render={({ field }) => (
+												<FormItem className="space-y-3">
+													<FormLabel>Período do ciclo *</FormLabel>
+													<FormControl>
+														<RadioGroup
+															onValueChange={field.onChange}
+															defaultValue={field.value}
+															className="flex flex-col space-y-1"
+														>
+															<FormItem className="flex items-center space-x-3 space-y-0">
+																<FormControl>
+																	<RadioGroupItem value={CyclePeriod.DAY} />
+																</FormControl>
+																<FormLabel className="font-normal">
+																	Diário
+																</FormLabel>
+															</FormItem>
+
+															<FormItem className="flex items-center space-x-3 space-y-0">
+																<FormControl>
+																	<RadioGroupItem value={CyclePeriod.WEEK} />
+																</FormControl>
+																<FormLabel className="font-normal">
+																	Semanal
+																</FormLabel>
+															</FormItem>
+
+															<FormItem className="flex items-center space-x-3 space-y-0">
+																<FormControl>
+																	<RadioGroupItem value={CyclePeriod.MONTH} />
+																</FormControl>
+																<FormLabel className="font-normal">
+																	Mensal
+																</FormLabel>
+															</FormItem>
+
+															<FormItem className="flex items-center space-x-3 space-y-0">
+																<FormControl>
+																	<RadioGroupItem value={CyclePeriod.YEAR} />
+																</FormControl>
+																<FormLabel className="font-normal">
+																	Anual
+																</FormLabel>
+															</FormItem>
+														</RadioGroup>
+													</FormControl>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
+
+										<FormField
+											control={form.control}
+											name="end"
+											render={({ field }) => (
+												<FormItem className="flex flex-col">
+													<FormLabel>Fim do ciclo</FormLabel>
+													<Popover>
+														<PopoverTrigger asChild>
+															<FormControl>
+																<Button
+																	variant={"outline"}
+																	className={cn(
+																		"pl-3 text-left font-normal",
+																		!field.value && "text-muted-foreground",
+																	)}
+																>
+																	{field.value ? (
+																		format(field.value, "PPP", { locale: ptBR })
+																	) : (
+																		<span>Selecione uma data</span>
+																	)}
+																	<CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+																</Button>
+															</FormControl>
+														</PopoverTrigger>
+														<PopoverContent
+															className="w-auto p-0"
+															align="start"
+														>
+															<Calendar
+																mode="single"
+																selected={field.value}
+																onSelect={field.onChange}
+																defaultMonth={
+																	form.getValues("end") ?? form.getValues("day")
+																}
+															/>
+														</PopoverContent>
+													</Popover>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
+									</>
+								)}
 							</form>
 						</Form>
 					</div>
 				</ScrollArea>
+
 				<DialogFooter>
 					{budget && (
 						<Button
@@ -320,12 +473,18 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 								fetch(`/api/budget/${budget.id}`, {
 									method: "DELETE",
 								}).then(() =>
-									queryClient.invalidateQueries({ queryKey: ["budgets"] }),
+									Promise.all(
+										["budgets", "totals"].map((arg) =>
+											queryClient.invalidateQueries({
+												queryKey: [arg],
+											}),
+										),
+									),
 								);
 							}}
 							variant="destructive"
 						>
-							Delete budget
+							Apagar
 						</Button>
 					)}
 
@@ -334,7 +493,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 						form="budget-form"
 						type="submit"
 					>
-						Save changes
+						Salvar
 					</Button>
 				</DialogFooter>
 			</DialogContent>

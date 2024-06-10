@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const formSchema = z.object({
@@ -60,8 +61,6 @@ const Page: FC = () => {
 
 		const { id } = await response.json();
 		setSelectedBadge(id);
-
-		form.resetField("name");
 	});
 
 	const color = isTextWhite(form.getValues("color")) ? "white" : "black";
@@ -77,12 +76,12 @@ const Page: FC = () => {
 							name="name"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Title</FormLabel>
+									<FormLabel>Nome</FormLabel>
 									<FormControl>
-										<Input placeholder="Empty" {...field} />
+										<Input placeholder="Vazio" {...field} />
 									</FormControl>
 									<FormDescription>
-										Slug: {generateSlug(form.getValues("name")) || "Empty"}
+										Slug: {generateSlug(form.getValues("name"))}
 									</FormDescription>
 									<FormMessage />
 								</FormItem>
@@ -94,7 +93,7 @@ const Page: FC = () => {
 							name="color"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Color Picker</FormLabel>
+									<FormLabel>Cor de destaque</FormLabel>
 									<FormControl>
 										<ColorPickerComponent
 											value={colorPickerValue}
@@ -111,21 +110,27 @@ const Page: FC = () => {
 									fetch(`/api/category/${selectedBadge}`, {
 										method: "DELETE",
 									})
-										.then(() =>
-											queryClient.invalidateQueries({
+										.then(async (response) => {
+											if (response.status === 400) {
+												const data = await response.json();
+												toast.error(data.message);
+												return;
+											}
+
+											await queryClient.invalidateQueries({
 												queryKey: ["categories"],
-											}),
-										)
-										.then(() => {
+											});
+
 											setSelectedBadge(null);
 											form.reset({ name: "", color: "#000000" });
-										});
+										})
+										.catch(console.error);
 								}}
 								className="w-full"
 								variant="destructive"
 								type="button"
 							>
-								Delete
+								Apagar categoria
 							</Button>
 						)}
 
@@ -134,7 +139,7 @@ const Page: FC = () => {
 							disabled={form.formState.isSubmitting}
 							type="submit"
 						>
-							Save changes
+							Salvar
 						</Button>
 					</form>
 				</Form>

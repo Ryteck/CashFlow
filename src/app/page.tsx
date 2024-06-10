@@ -12,7 +12,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { isTextWhite } from "@/lib/luminance";
-import type { SelectBudgetSchema } from "@/schemas/budget";
+import type { SelectBudgetSchema, TotalsBudgetSchema } from "@/schemas/budget";
 import { BudgetType } from "@prisma/client";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -26,38 +26,53 @@ import type { FC } from "react";
 const ApexCharts = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 const Page: FC = () => {
-	const query = useQuery<SelectBudgetSchema[]>({
+	const queryBudgets = useQuery<SelectBudgetSchema[]>({
 		queryKey: ["budgets"],
 		queryFn: () => fetch("/api/budget").then((response) => response.json()),
 		placeholderData: (previousData) => previousData,
 	});
 
+	const queryTotals = useQuery<TotalsBudgetSchema[]>({
+		queryKey: ["totals"],
+		queryFn: () => fetch("/api/totals").then((response) => response.json()),
+		placeholderData: (previousData) => previousData,
+	});
+
 	const earnings =
-		query.data?.filter(({ type }) => type === BudgetType.INPUT) ?? [];
+		queryBudgets.data?.filter(({ type }) => type === BudgetType.INPUT) ?? [];
 
 	const expenses =
-		query.data?.filter(({ type }) => type === BudgetType.OUTPUT) ?? [];
+		queryBudgets.data?.filter(({ type }) => type === BudgetType.OUTPUT) ?? [];
 
-	const earningsTotal = earnings.reduce((acc, cur) => acc + cur.amount, 0);
-	const expensesTotal = expenses.reduce((acc, cur) => acc + cur.amount, 0);
-
-	const cash = earningsTotal - expensesTotal;
+	const totals = ((queryTotals.data ?? []) as TotalsBudgetSchema[]).reduce(
+		(acc, cur) => {
+			acc.earnings += cur.earnings;
+			acc.expenses += cur.expenses;
+			acc.cash += cur.cash;
+			return acc;
+		},
+		{
+			earnings: 0,
+			expenses: 0,
+			cash: 0,
+		} as Omit<TotalsBudgetSchema, "category">,
+	);
 
 	return (
 		<main className="mx-auto w-fit flex space-x-8 pt-8">
-			<div className="flex flex-col min-w-[30rem] space-y-4">
+			<div className="flex flex-col min-w-96 space-y-4">
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center justify-between">
-							Earnings
+							Ganhos
 							<CirclePlusIcon className="text-emerald-500" />
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="font-mono">
 						<h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-							{earningsTotal.toLocaleString("en-US", {
+							{totals.earnings.toLocaleString("pt-BR", {
 								style: "currency",
-								currency: "USD",
+								currency: "BRL",
 							})}
 						</h1>
 					</CardContent>
@@ -67,10 +82,10 @@ const Page: FC = () => {
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead>Invoice</TableHead>
-								<TableHead>Category</TableHead>
-								<TableHead className="text-right">Amount</TableHead>
-								<TableHead className="text-center">Access</TableHead>
+								<TableHead>Ganho</TableHead>
+								<TableHead>Categoria</TableHead>
+								<TableHead className="text-right">Valor</TableHead>
+								<TableHead className="text-center">#</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -104,9 +119,9 @@ const Page: FC = () => {
 									</TableCell>
 
 									<TableCell className="text-right">
-										{earning.amount.toLocaleString("en-US", {
+										{earning.amount.toLocaleString("pt-BR", {
 											style: "currency",
-											currency: "USD",
+											currency: "BRL",
 										})}
 									</TableCell>
 
@@ -120,26 +135,26 @@ const Page: FC = () => {
 				</div>
 			</div>
 
-			<div className="flex flex-col min-w-[30rem] space-y-4">
-				<Card className="h-fit">
+			<div className="flex flex-col min-w-96 space-y-4">
+				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center justify-between">
-							Cash
+							Orçamento
 							<CircleDollarSign className="text-slate-500" />
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="font-mono">
 						<h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-							{cash.toLocaleString("en-US", {
+							{totals.cash.toLocaleString("pt-BR", {
 								style: "currency",
-								currency: "USD",
+								currency: "BRL",
 							})}
 						</h1>
 					</CardContent>
 				</Card>
 
 				<ApexCharts
-					width={480}
+					width={384}
 					height={200}
 					type="area"
 					options={{
@@ -161,9 +176,9 @@ const Page: FC = () => {
 						tooltip: {
 							y: {
 								formatter: (val) =>
-									val.toLocaleString("en-US", {
+									val.toLocaleString("pt-BR", {
 										style: "currency",
-										currency: "USD",
+										currency: "BRL",
 									}),
 							},
 						},
@@ -173,12 +188,12 @@ const Page: FC = () => {
 					}}
 					series={[
 						{
-							name: "Earnings",
+							name: "Ganhos",
 							data: [31, 40, 28, 51, 42, 109, 100],
 							color: "#10b981",
 						},
 						{
-							name: "Expenses",
+							name: "Gastos",
 							data: [11, 32, 45, 32, 34, 52, 41],
 							color: "#ef4444",
 						},
@@ -188,19 +203,19 @@ const Page: FC = () => {
 				<BudgetFormComponent />
 			</div>
 
-			<div className="flex flex-col min-w-[30rem] space-y-4">
+			<div className="flex flex-col min-w-96 space-y-4">
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center justify-between">
-							Expenses
+							Gastos
 							<CircleMinusIcon className="text-red-500" />
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="font-mono">
 						<h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-							{expensesTotal.toLocaleString("en-US", {
+							{totals.expenses.toLocaleString("pt-BR", {
 								style: "currency",
-								currency: "USD",
+								currency: "BRL",
 							})}
 						</h1>
 					</CardContent>
@@ -210,10 +225,10 @@ const Page: FC = () => {
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead>Invoice</TableHead>
-								<TableHead>Category</TableHead>
-								<TableHead className="text-right">Amount</TableHead>
-								<TableHead className="text-center">Access</TableHead>
+								<TableHead>Gasto</TableHead>
+								<TableHead>Categoria</TableHead>
+								<TableHead className="text-right">Valor</TableHead>
+								<TableHead className="text-center">#</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -240,9 +255,9 @@ const Page: FC = () => {
 									</TableCell>
 
 									<TableCell className="text-right">
-										{expense.amount.toLocaleString("en-US", {
+										{expense.amount.toLocaleString("pt-BR", {
 											style: "currency",
-											currency: "USD",
+											currency: "BRL",
 										})}
 									</TableCell>
 
