@@ -1,14 +1,49 @@
 import Repository from "@/domain/Repository";
 import CategoryRepository from "@/repositories/Category";
-import type {
-	SelectBudgetSchema,
-	TotalsBudgetSchema,
-	UpsertBudgetSchema,
+import {
+	type CycleBudgetSchema,
+	type GeneralBudget,
+	type SelectBudgetSchema,
+	type TotalsBudgetSchema,
+	type UpsertBudgetSchema,
+	cycleBudgetSchema,
 } from "@/schemas/budget";
 import { BudgetType } from "@prisma/client";
 
 export default class BudgetRepository extends Repository {
-	async totals(
+	private async cycles(
+		startDate: null | Date,
+		endDate: null | Date,
+	): Promise<CycleBudgetSchema> {
+		const budgets = await this.prismaClient.budget.findMany({
+			include: { category: true, cycle: true },
+			orderBy: { day: "asc" },
+			where: {
+				cycleId: { not: null },
+				day: { lte: endDate ?? new Date() },
+				cycle: {
+					OR: [
+						{ end: null },
+						{ end: startDate ? { gte: startDate } : { not: null } },
+					],
+				},
+			},
+		});
+
+		let cycle = cycleBudgetSchema.parse(budgets);
+
+		if (startDate) {
+			cycle = cycle.filter(({ cycleDay }) => cycleDay >= startDate);
+		}
+
+		if (endDate) {
+			cycle = cycle.filter(({ cycleDay }) => cycleDay <= endDate);
+		}
+
+		return cycle;
+	}
+
+	public async totals(
 		startDate: null | Date,
 		endDate: null | Date,
 	): Promise<TotalsBudgetSchema[]> {
@@ -19,9 +54,10 @@ export default class BudgetRepository extends Repository {
 			by: ["categoryId", "type"],
 			_sum: { amount: true },
 			where: {
+				cycleId: null,
 				day: {
 					gte: startDate ?? undefined,
-					lte: endDate ?? undefined,
+					lte: endDate ?? new Date(),
 				},
 			},
 		});
@@ -54,23 +90,55 @@ export default class BudgetRepository extends Repository {
 			}
 		}
 
+		const cycles = await this.cycles(startDate, endDate);
+
+		for (const cycle of cycles) {
+			if (!budgetTotals[cycle.category.id])
+				budgetTotals[cycle.category.id] = {
+					name: cycle.category.name,
+					color: cycle.category.color,
+					earnings: 0,
+					expenses: 0,
+					cash: 0,
+				};
+
+			if (cycle.type === BudgetType.INPUT) {
+				budgetTotals[cycle.category.id].earnings += cycle.amount;
+				budgetTotals[cycle.category.id].cash += cycle.amount;
+			}
+
+			if (cycle.type === BudgetType.OUTPUT) {
+				budgetTotals[cycle.category.id].expenses += cycle.amount;
+				budgetTotals[cycle.category.id].cash -= cycle.amount;
+			}
+		}
+
 		return Object.values(budgetTotals);
 	}
 
-	public list(
+	public async list(
 		startDate: null | Date,
 		endDate: null | Date,
-	): Promise<SelectBudgetSchema[]> {
-		return this.prismaClient.budget.findMany({
-			include: { category: true, cycle: true },
-			orderBy: { day: "asc" },
-			where: {
-				day: {
-					gte: startDate ?? undefined,
-					lte: endDate ?? undefined,
+	): Promise<GeneralBudget[]> {
+		const [budgets, cycles] = await Promise.all([
+			this.prismaClient.budget.findMany({
+				include: { category: true, cycle: true },
+				orderBy: { day: "asc" },
+				where: {
+					cycleId: null,
+					day: {
+						gte: startDate ?? undefined,
+						lte: endDate ?? new Date(),
+					},
 				},
-			},
-		});
+			}),
+			this.cycles(startDate, endDate),
+		]);
+
+		return [
+			...budgets.map((arg) => ({ ...arg, key: arg.id, cycleDay: arg.day })),
+			...cycles,
+		];
 	}
 
 	public upsert({

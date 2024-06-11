@@ -12,7 +12,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { isTextWhite } from "@/lib/luminance";
-import type { SelectBudgetSchema, TotalsBudgetSchema } from "@/schemas/budget";
+import type { GeneralBudget, TotalsBudgetSchema } from "@/schemas/budget";
 import { BudgetType } from "@prisma/client";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -26,7 +26,7 @@ import type { FC } from "react";
 const ApexCharts = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 const Page: FC = () => {
-	const queryBudgets = useQuery<SelectBudgetSchema[]>({
+	const queryBudgets = useQuery<GeneralBudget[]>({
 		queryKey: ["budgets"],
 		queryFn: () => fetch("/api/budget").then((response) => response.json()),
 		placeholderData: (previousData) => previousData,
@@ -90,7 +90,7 @@ const Page: FC = () => {
 						</TableHeader>
 						<TableBody>
 							{earnings.map((earning) => (
-								<TableRow key={earning.id}>
+								<TableRow key={earning.key}>
 									<TableCell className="flex flex-col">
 										<p className="font-bold text-xl">{earning.title}</p>
 										<p className="text-xs">{earning.description}</p>
@@ -233,7 +233,7 @@ const Page: FC = () => {
 						</TableHeader>
 						<TableBody>
 							{expenses.map((expense) => (
-								<TableRow key={expense.id}>
+								<TableRow key={expense.key}>
 									<TableCell className="flex flex-col">
 										<p className="font-bold text-xl">{expense.title}</p>
 										<p className="text-xs">{expense.description}</p>

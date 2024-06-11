@@ -3,7 +3,10 @@ import { z } from "zod";
 
 export const cycleSchema = z.object({
 	id: z.string().uuid(),
-	end: z.date().nullish(),
+	end: z
+		.date()
+		.or(z.string().transform((arg) => new Date(arg)))
+		.nullish(),
 	period: z.nativeEnum(CyclePeriod),
 });
 

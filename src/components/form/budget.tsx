@@ -112,9 +112,9 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 			type: budget?.type ?? BudgetType.INPUT,
 			categoryId: budget?.categoryId ?? "",
 
-			enableCycle: false,
-			period: CyclePeriod.MONTH,
-			end: undefined,
+			enableCycle: !!budget?.cycleId,
+			period: budget?.cycle?.period ?? CyclePeriod.MONTH,
+			end: budget?.cycle?.end ?? undefined,
 		},
 	});
 

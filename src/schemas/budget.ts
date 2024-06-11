@@ -1,6 +1,6 @@
 import { categorySchema } from "@/schemas/category";
 import { cycleSchema, upsertCycleSchema } from "@/schemas/cycle";
-import { BudgetType } from "@prisma/client";
+import { BudgetType, CyclePeriod } from "@prisma/client";
 import { z } from "zod";
 
 export const budgetSchema = z.object({
@@ -22,7 +22,7 @@ export const budgetSchema = z.object({
 
 export const selectBudgetSchema = budgetSchema.merge(
 	z.object({
-		category: categorySchema.nullable(),
+		category: categorySchema,
 		cycle: cycleSchema.nullable(),
 	}),
 );
@@ -45,3 +45,64 @@ export const totalsBudgetSchema = z.object({
 });
 
 export type TotalsBudgetSchema = z.infer<typeof totalsBudgetSchema>;
+
+export interface GeneralBudget extends SelectBudgetSchema {
+	key: string;
+	cycleDay: Date;
+}
+
+export const cycleBudgetSchema = selectBudgetSchema
+	.array()
+	.transform((args) => {
+		const cycledBudget: GeneralBudget[] = [];
+
+		let cycleDay: Date = new Date();
+
+		args.forEach((arg, index) => {
+			if (!arg.cycleId || !arg.cycle) return;
+			if (index === 0) cycleDay = new Date(arg.day);
+
+			while (
+				cycleDay < new Date() ||
+				(arg.cycle.end && cycleDay < arg.cycle.end)
+			) {
+				cycledBudget.push({
+					key: `${arg.id}&${cycleDay.getTime()}`,
+
+					id: arg.id,
+
+					title: arg.title,
+					description: arg.description,
+					categoryId: arg.categoryId,
+					amount: arg.amount,
+					day: arg.day,
+
+					type: arg.type,
+					createdAt: arg.createdAt,
+					updatedAt: arg.updatedAt,
+
+					category: arg.category,
+
+					cycleId: arg.cycleId,
+					cycle: arg.cycle,
+					cycleDay,
+				});
+
+				cycleDay = new Date(cycleDay);
+
+				if (arg.cycle.period === CyclePeriod.DAY)
+					cycleDay.setDate(cycleDay.getDate() + 1);
+				else if (arg.cycle.period === CyclePeriod.WEEK)
+					cycleDay.setDate(cycleDay.getDate() + 7);
+				else if (arg.cycle.period === CyclePeriod.MONTH)
+					cycleDay.setMonth(cycleDay.getMonth() + 1);
+				else if (arg.cycle.period === CyclePeriod.YEAR)
+					cycleDay.setFullYear(cycleDay.getFullYear() + 1);
+				else break;
+			}
+		});
+
+		return cycledBudget;
+	});
+
+export type CycleBudgetSchema = z.infer<typeof cycleBudgetSchema>;

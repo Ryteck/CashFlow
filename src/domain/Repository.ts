@@ -9,7 +9,11 @@ export default abstract class Repository {
 	protected readonly prismaClient: PrismaClient;
 
 	constructor() {
-		this.prismaClient = globalThis.prismaClient ?? new PrismaClient();
+		this.prismaClient =
+			globalThis.prismaClient ??
+			new PrismaClient({
+				transactionOptions: { timeout: 10000 },
+			});
 
 		if (process.env.NODE_ENV !== "production")
 			globalThis.prismaClient = this.prismaClient;

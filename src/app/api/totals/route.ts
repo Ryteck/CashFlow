@@ -13,7 +13,21 @@ export async function GET(request: NextRequest) {
 	const endDate = paramsEndDate ? new Date(paramsEndDate) : null;
 
 	const budgetRepository = new BudgetRepository();
+
 	const totals = await budgetRepository.totals(startDate, endDate);
 
-	return Response.json(totals);
+	return Response.json(
+		totals.sort((a, b) => {
+			const cashValue = b.cash - a.cash;
+			if (cashValue !== 0) return cashValue;
+
+			const aLower = a.name.toLowerCase();
+			const bLower = b.name.toLowerCase();
+
+			if (aLower < bLower) return -1;
+			if (aLower > bLower) return 1;
+
+			return 0;
+		}),
+	);
 }
