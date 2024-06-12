@@ -68,7 +68,7 @@ export const DashboardComponent: FC = () => {
 		const startDateParam = startDate ? `startDate=${startDate}` : "";
 		const endDateParam = endDate ? `endDate=${endDate}` : "";
 
-		const [budgets, totals] = await Promise.all([
+		const [budgetsResponse, totalsResponse] = await Promise.all([
 			fetch(`/api/budget?${startDateParam}&${endDateParam}`).then((response) =>
 				response.json(),
 			),
@@ -77,8 +77,8 @@ export const DashboardComponent: FC = () => {
 			),
 		]);
 
-		setBudgets(budgets);
-		setBruteTotals(totals);
+		setBudgets(budgetsResponse);
+		setBruteTotals(totalsResponse);
 	}
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies:

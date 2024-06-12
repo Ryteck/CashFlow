@@ -113,7 +113,18 @@ export default class BudgetRepository extends Repository {
 			}
 		}
 
-		return Object.values(budgetTotals);
+		return Object.values(budgetTotals).sort((a, b) => {
+			const cashValue = b.cash - a.cash;
+			if (cashValue !== 0) return cashValue;
+
+			const aLower = a.name.toLowerCase();
+			const bLower = b.name.toLowerCase();
+
+			if (aLower < bLower) return -1;
+			if (aLower > bLower) return 1;
+
+			return 0;
+		});
 	}
 
 	public async list(
@@ -123,7 +134,6 @@ export default class BudgetRepository extends Repository {
 		const [budgets, cycles] = await Promise.all([
 			this.prismaClient.budget.findMany({
 				include: { category: true, cycle: true },
-				orderBy: { day: "asc" },
 				where: {
 					cycleId: null,
 					day: {
@@ -138,7 +148,7 @@ export default class BudgetRepository extends Repository {
 		return [
 			...budgets.map((arg) => ({ ...arg, key: arg.id, cycleDay: arg.day })),
 			...cycles,
-		];
+		].sort((a, b) => a.cycleDay.getTime() - b.cycleDay.getTime());
 	}
 
 	public upsert({
@@ -171,7 +181,7 @@ export default class BudgetRepository extends Repository {
 
 			const newData = { ...data, cycleId };
 
-			return this.prismaClient.budget.upsert({
+			return transaction.budget.upsert({
 				where: { id },
 				create: newData,
 				update: newData,
@@ -187,8 +197,9 @@ export default class BudgetRepository extends Repository {
 				include: { category: true, cycle: true },
 			});
 
-			if (budget.cycleId)
-				await transaction.cycle.delete({ where: { id: budget.cycleId } });
+			const { cycleId } = budget;
+
+			if (cycleId) await transaction.cycle.delete({ where: { id: cycleId } });
 
 			return budget;
 		});

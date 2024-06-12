@@ -16,18 +16,5 @@ export async function GET(request: NextRequest) {
 
 	const totals = await budgetRepository.totals(startDate, endDate);
 
-	return Response.json(
-		totals.sort((a, b) => {
-			const cashValue = b.cash - a.cash;
-			if (cashValue !== 0) return cashValue;
-
-			const aLower = a.name.toLowerCase();
-			const bLower = b.name.toLowerCase();
-
-			if (aLower < bLower) return -1;
-			if (aLower > bLower) return 1;
-
-			return 0;
-		}),
-	);
+	return Response.json(totals);
 }
