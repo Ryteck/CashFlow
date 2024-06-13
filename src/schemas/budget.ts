@@ -18,6 +18,8 @@ export const budgetSchema = z.object({
 	updatedAt: z.date(),
 
 	cycleId: z.string().uuid().nullable(),
+
+	userId: z.string().uuid(),
 });
 
 export const selectBudgetSchema = budgetSchema.merge(
@@ -46,15 +48,19 @@ export const totalsBudgetSchema = z.object({
 
 export type TotalsBudgetSchema = z.infer<typeof totalsBudgetSchema>;
 
-export interface GeneralBudget extends SelectBudgetSchema {
-	key: string;
-	cycleDay: Date;
-}
+export const generalBudgetSchema = selectBudgetSchema.merge(
+	z.object({
+		key: z.string(),
+		cycleDay: z.date(),
+	}),
+);
+
+export type GeneralBudgetSchema = z.infer<typeof generalBudgetSchema>;
 
 export const cycleBudgetSchema = selectBudgetSchema
 	.array()
 	.transform((args) => {
-		const cycledBudget: GeneralBudget[] = [];
+		const cycledBudget: GeneralBudgetSchema[] = [];
 
 		let cycleDay: Date = new Date();
 
@@ -67,24 +73,9 @@ export const cycleBudgetSchema = selectBudgetSchema
 				(arg.cycle.end && cycleDay < arg.cycle.end)
 			) {
 				cycledBudget.push({
+					...arg,
+
 					key: `${arg.id}&${cycleDay.getTime()}`,
-
-					id: arg.id,
-
-					title: arg.title,
-					description: arg.description,
-					categoryId: arg.categoryId,
-					amount: arg.amount,
-					day: arg.day,
-
-					type: arg.type,
-					createdAt: arg.createdAt,
-					updatedAt: arg.updatedAt,
-
-					category: arg.category,
-
-					cycleId: arg.cycleId,
-					cycle: arg.cycle,
 					cycleDay,
 				});
 

@@ -2,7 +2,7 @@ import Repository from "@/domain/Repository";
 import CategoryRepository from "@/repositories/Category";
 import {
 	type CycleBudgetSchema,
-	type GeneralBudget,
+	type GeneralBudgetSchema,
 	type SelectBudgetSchema,
 	type TotalsBudgetSchema,
 	type UpsertBudgetSchema,
@@ -14,11 +14,13 @@ export default class BudgetRepository extends Repository {
 	private async cycles(
 		startDate: null | Date,
 		endDate: null | Date,
+		userId: string,
 	): Promise<CycleBudgetSchema> {
 		const budgets = await this.prismaClient.budget.findMany({
 			include: { category: true, cycle: true },
 			orderBy: { day: "asc" },
 			where: {
+				userId,
 				cycleId: { not: null },
 				day: { lte: endDate ?? new Date() },
 				cycle: {
@@ -46,6 +48,7 @@ export default class BudgetRepository extends Repository {
 	public async totals(
 		startDate: null | Date,
 		endDate: null | Date,
+		userId: string,
 	): Promise<TotalsBudgetSchema[]> {
 		const categoryRepository = new CategoryRepository();
 		const budgetTotals: Record<string, TotalsBudgetSchema> = {};
@@ -54,6 +57,7 @@ export default class BudgetRepository extends Repository {
 			by: ["categoryId", "type"],
 			_sum: { amount: true },
 			where: {
+				userId,
 				cycleId: null,
 				day: {
 					gte: startDate ?? undefined,
@@ -66,7 +70,10 @@ export default class BudgetRepository extends Repository {
 			const { categoryId } = budget;
 
 			if (!budgetTotals[categoryId]) {
-				const { name, color } = await categoryRepository.find(categoryId);
+				const { name, color } = await categoryRepository.find(
+					categoryId,
+					userId,
+				);
 
 				budgetTotals[categoryId] = {
 					name,
@@ -90,7 +97,7 @@ export default class BudgetRepository extends Repository {
 			}
 		}
 
-		const cycles = await this.cycles(startDate, endDate);
+		const cycles = await this.cycles(startDate, endDate, userId);
 
 		for (const cycle of cycles) {
 			if (!budgetTotals[cycle.category.id])
@@ -130,11 +137,13 @@ export default class BudgetRepository extends Repository {
 	public async list(
 		startDate: null | Date,
 		endDate: null | Date,
-	): Promise<GeneralBudget[]> {
+		userId: string,
+	): Promise<GeneralBudgetSchema[]> {
 		const [budgets, cycles] = await Promise.all([
 			this.prismaClient.budget.findMany({
 				include: { category: true, cycle: true },
 				where: {
+					userId,
 					cycleId: null,
 					day: {
 						gte: startDate ?? undefined,
@@ -142,7 +151,7 @@ export default class BudgetRepository extends Repository {
 					},
 				},
 			}),
-			this.cycles(startDate, endDate),
+			this.cycles(startDate, endDate, userId),
 		]);
 
 		return [
@@ -151,11 +160,13 @@ export default class BudgetRepository extends Repository {
 		].sort((a, b) => a.cycleDay.getTime() - b.cycleDay.getTime());
 	}
 
-	public upsert({
-		id = this.UUID_V0,
-		cycle,
-		...data
-	}: UpsertBudgetSchema): Promise<SelectBudgetSchema> {
+	public upsert(
+		{ id = this.UUID_V0, cycle, ...data }: UpsertBudgetSchema,
+		userId: string,
+	): Promise<SelectBudgetSchema> {
+		if (cycle) cycle.userId = userId;
+		data.userId = userId;
+
 		return this.prismaClient.$transaction(async (transaction) => {
 			const oldBudget = await transaction.budget.findUnique({
 				where: { id },
@@ -190,10 +201,10 @@ export default class BudgetRepository extends Repository {
 		});
 	}
 
-	public destroy(id: string): Promise<SelectBudgetSchema> {
+	public destroy(id: string, userId: string): Promise<SelectBudgetSchema> {
 		return this.prismaClient.$transaction(async (transaction) => {
 			const budget = await transaction.budget.delete({
-				where: { id },
+				where: { id, userId },
 				include: { category: true, cycle: true },
 			});
 

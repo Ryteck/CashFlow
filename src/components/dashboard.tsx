@@ -1,5 +1,7 @@
 "use client";
 
+import { BudgetLineComponent } from "@/components/BudgetLine";
+import { CategoryChartComponent } from "@/components/CategoryDonut";
 import { BudgetFormComponent } from "@/components/form/budget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,28 +24,25 @@ import {
 } from "@/components/ui/table";
 import { isTextWhite } from "@/lib/luminance";
 import { cn } from "@/lib/utils";
-import type { GeneralBudget, TotalsBudgetSchema } from "@/schemas/budget";
+import { useDashboardStore } from "@/store/dashboard";
 import { BudgetType } from "@prisma/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+	ArrowRightIcon,
 	CalendarIcon,
 	CircleDollarSign,
 	CircleMinusIcon,
 	CirclePlusIcon,
 	EraserIcon,
 } from "lucide-react";
-import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type FC, useEffect, useState } from "react";
-
-const ApexCharts = dynamic(() => import("react-apexcharts"), { ssr: false });
+import { type FC, useEffect } from "react";
 
 export const DashboardComponent: FC = () => {
-	const [budgets, setBudgets] = useState<GeneralBudget[]>([]);
-	const [bruteTotals, setBruteTotals] = useState<TotalsBudgetSchema[]>([]);
+	const dashboardStore = useDashboardStore();
 
-	const totals = ((bruteTotals ?? []) as TotalsBudgetSchema[]).reduce(
+	const totals = dashboardStore.data.totals.reduce(
 		(acc, cur) => {
 			acc.earnings += cur.earnings;
 			acc.expenses += cur.expenses;
@@ -54,7 +53,7 @@ export const DashboardComponent: FC = () => {
 			earnings: 0,
 			expenses: 0,
 			cash: 0,
-		} as Omit<TotalsBudgetSchema, "category">,
+		},
 	);
 
 	const pathname = usePathname();
@@ -64,53 +63,29 @@ export const DashboardComponent: FC = () => {
 	const startDate = searchParams.get("startDate");
 	const endDate = searchParams.get("endDate");
 
-	async function loadData() {
-		const startDateParam = startDate ? `startDate=${startDate}` : "";
-		const endDateParam = endDate ? `endDate=${endDate}` : "";
-
-		const [budgetsResponse, totalsResponse] = await Promise.all([
-			fetch(`/api/budget?${startDateParam}&${endDateParam}`).then((response) =>
-				response.json(),
-			),
-			fetch(`/api/totals?${startDateParam}&${endDateParam}`).then((response) =>
-				response.json(),
-			),
-		]);
-
-		setBudgets(budgetsResponse);
-		setBruteTotals(totalsResponse);
-	}
-
 	// biome-ignore lint/correctness/useExhaustiveDependencies:
 	useEffect(() => {
-		loadData().catch(console.error);
+		dashboardStore.load(startDate, endDate).catch(console.error);
 	}, []);
 
 	return (
 		<main className="w-full flex flex-col items-center pt-8 gap-8">
+			<h2 className="flex gap-2 text-2xl items-center font-bold">
+				{dashboardStore.data.startDate
+					? format(dashboardStore.data.startDate, "P", { locale: ptBR })
+					: "Primeiro registro"}
+
+				<ArrowRightIcon />
+
+				{dashboardStore.data.endDate
+					? format(dashboardStore.data.endDate, "P", { locale: ptBR })
+					: "Data atual"}
+			</h2>
+
+			<BudgetLineComponent />
+
 			<div className="w-11/12 flex gap-8">
-				<ApexCharts
-					width="320"
-					height="320"
-					type="donut"
-					options={{
-						tooltip: {
-							y: {
-								formatter: (val) =>
-									val.toLocaleString("pt-BR", {
-										style: "currency",
-										currency: "BRL",
-									}),
-							},
-						},
-						labels: bruteTotals.map(({ name }) => name),
-						fill: {
-							colors: bruteTotals.map(({ color }) => color),
-						},
-						colors: bruteTotals.map(({ color }) => color),
-					}}
-					series={bruteTotals.map(({ earnings }) => earnings)}
-				/>
+				<CategoryChartComponent filter="earnings" />
 
 				<div className="flex flex-col gap-2 mx-auto">
 					<Label>Data inicial:</Label>
@@ -127,7 +102,7 @@ export const DashboardComponent: FC = () => {
 									{startDate ? (
 										format(startDate, "PPP", { locale: ptBR })
 									) : (
-										<span>Pick a date</span>
+										<span>Selecione uma data</span>
 									)}
 									<CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
 								</Button>
@@ -180,7 +155,7 @@ export const DashboardComponent: FC = () => {
 									{endDate ? (
 										format(endDate, "PPP", { locale: ptBR })
 									) : (
-										<span>Pick a date</span>
+										<span>Selecione uma data</span>
 									)}
 									<CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
 								</Button>
@@ -220,31 +195,20 @@ export const DashboardComponent: FC = () => {
 						</Button>
 					</div>
 
-					<Button onClick={loadData}>Filtrar</Button>
+					<Button
+						onClick={() => {
+							dashboardStore.load(startDate, endDate).catch(console.error);
+						}}
+						disabled={
+							startDate === dashboardStore.data.startDate &&
+							endDate === dashboardStore.data.endDate
+						}
+					>
+						Filtrar
+					</Button>
 				</div>
 
-				<ApexCharts
-					width="320"
-					height="320"
-					type="donut"
-					options={{
-						tooltip: {
-							y: {
-								formatter: (val) =>
-									val.toLocaleString("pt-BR", {
-										style: "currency",
-										currency: "BRL",
-									}),
-							},
-						},
-						labels: bruteTotals.map(({ name }) => name),
-						fill: {
-							colors: bruteTotals.map(({ color }) => color),
-						},
-						colors: bruteTotals.map(({ color }) => color),
-					}}
-					series={bruteTotals.map(({ expenses }) => expenses)}
-				/>
+				<CategoryChartComponent filter="expenses" />
 			</div>
 			<div className="flex gap-8">
 				<div>
@@ -274,9 +238,18 @@ export const DashboardComponent: FC = () => {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{bruteTotals.map((category) => (
+							{dashboardStore.data.totals.map((category) => (
 								<TableRow key={category.name}>
-									<TableCell>{category.name}</TableCell>
+									<TableCell>
+										<Badge
+											style={{
+												backgroundColor: category.color,
+												color: isTextWhite(category.color) ? "white" : "black",
+											}}
+										>
+											{category.name}
+										</Badge>
+									</TableCell>
 									<TableCell className="text-right">
 										{category.earnings.toLocaleString("pt-BR", {
 											style: "currency",
@@ -316,9 +289,18 @@ export const DashboardComponent: FC = () => {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{bruteTotals.map((category) => (
+							{dashboardStore.data.totals.map((category) => (
 								<TableRow key={category.name}>
-									<TableCell>{category.name}</TableCell>
+									<TableCell>
+										<Badge
+											style={{
+												backgroundColor: category.color,
+												color: isTextWhite(category.color) ? "white" : "black",
+											}}
+										>
+											{category.name}
+										</Badge>
+									</TableCell>
 									<TableCell className="text-right">
 										{category.cash.toLocaleString("pt-BR", {
 											style: "currency",
@@ -358,9 +340,18 @@ export const DashboardComponent: FC = () => {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{bruteTotals.map((category) => (
+							{dashboardStore.data.totals.map((category) => (
 								<TableRow key={category.name}>
-									<TableCell>{category.name}</TableCell>
+									<TableCell>
+										<Badge
+											style={{
+												backgroundColor: category.color,
+												color: isTextWhite(category.color) ? "white" : "black",
+											}}
+										>
+											{category.name}
+										</Badge>
+									</TableCell>
 									<TableCell className="text-right">
 										{category.expenses.toLocaleString("pt-BR", {
 											style: "currency",
@@ -386,7 +377,7 @@ export const DashboardComponent: FC = () => {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{budgets.map((budget) => (
+						{dashboardStore.data.budgets.map((budget) => (
 							<TableRow key={budget.key}>
 								<TableCell className="flex flex-col">
 									<p className="font-bold text-xl">{budget.title}</p>

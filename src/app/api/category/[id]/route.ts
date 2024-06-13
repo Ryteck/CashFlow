@@ -1,4 +1,5 @@
 import CategoryRepository from "@/repositories/Category";
+import AuthService from "@/services/auth";
 import type RouteParams from "@/types/RouteParams";
 import { Prisma } from "@prisma/client";
 
@@ -11,9 +12,11 @@ interface Segments {
 type Params = RouteParams<Segments>;
 
 export async function DELETE(request: Request, { params }: Params) {
+	const session = await new AuthService().getSession();
+
 	try {
 		const categoryRepository = new CategoryRepository();
-		const category = await categoryRepository.destroy(params.id);
+		const category = await categoryRepository.destroy(params.id, session.id);
 
 		return Response.json(category);
 	} catch (err) {

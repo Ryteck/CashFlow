@@ -41,12 +41,14 @@ import { isTextWhite } from "@/lib/luminance";
 import { cn } from "@/lib/utils";
 import type { SelectBudgetSchema } from "@/schemas/budget";
 import type { UpsertCycleSchema } from "@/schemas/cycle";
+import { useDashboardStore } from "@/store/dashboard";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BudgetType, type Category, CyclePeriod } from "@prisma/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, PencilIcon } from "lucide-react";
+import { CalendarIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { type FC, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -82,12 +84,11 @@ const formSchema = z.object({
 
 interface Props {
 	budget?: SelectBudgetSchema;
+	disableTrigger?: boolean;
 }
 
-export const BudgetFormComponent: FC<Props> = ({ budget }) => {
+export const BudgetFormComponent: FC<Props> = ({ budget, disableTrigger }) => {
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-	const queryClient = useQueryClient();
 
 	const query = useQuery<Category[]>({
 		queryKey: ["categories"],
@@ -122,6 +123,13 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 		if (isDialogOpen) form.reset();
 	}, [isDialogOpen, form]);
 
+	const searchParams = useSearchParams();
+
+	const startDate = searchParams.get("startDate");
+	const endDate = searchParams.get("endDate");
+
+	const dashboardStore = useDashboardStore();
+
 	const onSubmit = form.handleSubmit(
 		async ({ enableCycle, period, end, ...data }) => {
 			if (end && end <= data.day) {
@@ -147,13 +155,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 				form.reset();
 			}
 
-			await Promise.all(
-				["budgets", "totals"].map((arg) =>
-					queryClient.invalidateQueries({
-						queryKey: [arg],
-					}),
-				),
-			);
+			dashboardStore.load(startDate, endDate).catch(console.error);
 		},
 	);
 
@@ -162,10 +164,11 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 			<DialogTrigger asChild>
 				<Button
 					className={budget ? "rounded-full" : ""}
-					variant={budget ? "ghost" : "default"}
-					size={budget ? "icon" : "default"}
+					variant={budget ? "ghost" : "outline"}
+					size="icon"
+					disabled={disableTrigger}
 				>
-					{budget ? <PencilIcon /> : "Cadastrar novo orçamento"}
+					{budget ? <PencilIcon /> : <PlusIcon />}
 				</Button>
 			</DialogTrigger>
 			<DialogContent>
@@ -472,15 +475,7 @@ export const BudgetFormComponent: FC<Props> = ({ budget }) => {
 							onClick={() => {
 								fetch(`/api/budget/${budget.id}`, {
 									method: "DELETE",
-								}).then(() =>
-									Promise.all(
-										["budgets", "totals"].map((arg) =>
-											queryClient.invalidateQueries({
-												queryKey: [arg],
-											}),
-										),
-									),
-								);
+								}).then(() => dashboardStore.load(startDate, endDate));
 							}}
 							variant="destructive"
 						>

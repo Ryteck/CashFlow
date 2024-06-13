@@ -13,14 +13,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id       String @id @default(uuid())
+  nickname String @unique
+  password String
+
+  categories Category[]
+  budgets    Budget[]
+  cycles     Cycle[]
+}
+
 model Category {
   id   String @id @default(uuid())
-  slug String @unique
+  slug String
 
   name  String
   color String
 
   budgets Budget[]
+
+  userId String
+  user   User   @relation(fields: userId, references: id)
+
+  @@unique([id, userId])
+  @@unique([slug, userId])
 }
 
 enum BudgetType {
@@ -39,13 +55,16 @@ model Budget {
   type BudgetType
 
   categoryId String
-  category   Category @relation(fields: categoryId, references: id)
+  category   Category @relation(fields: [categoryId, userId], references: [id, userId])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   cycleId String?
-  cycle   Cycle?  @relation(fields: cycleId, references: id)
+  cycle   Cycle?  @relation(fields: [cycleId, userId], references: [id, userId])
+
+  userId String
+  user   User   @relation(fields: userId, references: id)
 }
 
 enum CyclePeriod {
@@ -61,4 +80,9 @@ model Cycle {
   period CyclePeriod
 
   budgets Budget[]
+
+  userId String
+  user   User   @relation(fields: userId, references: id)
+
+  @@unique([id, userId])
 }

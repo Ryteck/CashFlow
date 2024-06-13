@@ -8,6 +8,8 @@ export const cycleSchema = z.object({
 		.or(z.string().transform((arg) => new Date(arg)))
 		.nullish(),
 	period: z.nativeEnum(CyclePeriod),
+
+	userId: z.string().uuid(),
 });
 
 export const upsertCycleSchema = cycleSchema.omit({ id: true }).nullable();

@@ -1,6 +1,7 @@
 import "@/styles/tailwind.css";
 import "react-color-palette/css";
 
+import { HeaderComponent } from "@/components/header";
 import { QueryProviderComponent } from "@/components/providers/query";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";

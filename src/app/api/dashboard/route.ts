@@ -1,9 +1,13 @@
 import BudgetRepository from "@/repositories/Budget";
+import type { DashboardSchema } from "@/schemas/dashboard";
+import AuthService from "@/services/auth";
 import type { NextRequest } from "next/server";
 
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
+	const session = await new AuthService().getSession();
+
 	const searchParams = request.nextUrl.searchParams;
 
 	const paramsStartDate = searchParams.get("startDate");
@@ -14,7 +18,17 @@ export async function GET(request: NextRequest) {
 
 	const budgetRepository = new BudgetRepository();
 
-	const totals = await budgetRepository.totals(startDate, endDate);
+	const [budgets, totals] = await Promise.all([
+		budgetRepository.list(startDate, endDate, session.id),
+		budgetRepository.totals(startDate, endDate, session.id),
+	]);
 
-	return Response.json(totals);
+	const dashboardResponse: DashboardSchema = {
+		budgets,
+		totals,
+		startDate,
+		endDate,
+	};
+
+	return Response.json(dashboardResponse);
 }

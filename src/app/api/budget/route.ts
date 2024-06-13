@@ -1,30 +1,15 @@
 import BudgetRepository from "@/repositories/Budget";
 import { upsertBudgetSchema } from "@/schemas/budget";
-import type { NextRequest } from "next/server";
-
-export const revalidate = 0;
-
-export async function GET(request: NextRequest) {
-	const searchParams = request.nextUrl.searchParams;
-
-	const paramsStartDate = searchParams.get("startDate");
-	const paramsEndDate = searchParams.get("endDate");
-
-	const startDate = paramsStartDate ? new Date(paramsStartDate) : null;
-	const endDate = paramsEndDate ? new Date(paramsEndDate) : null;
-
-	const budgetRepository = new BudgetRepository();
-	const budgetList = await budgetRepository.list(startDate, endDate);
-
-	return Response.json(budgetList);
-}
+import AuthService from "@/services/auth";
 
 export async function POST(request: Request) {
+	const session = await new AuthService().getSession();
+
 	const body = await request.json();
-	const parsedBody = upsertBudgetSchema.parse(body);
+	const parsedBody = upsertBudgetSchema.parse({ ...body, userId: session.id });
 
 	const budgetRepository = new BudgetRepository();
-	const budget = await budgetRepository.upsert(parsedBody);
+	const budget = await budgetRepository.upsert(parsedBody, session.id);
 
 	return Response.json(budget);
 }

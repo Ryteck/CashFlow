@@ -6,6 +6,8 @@ export const categorySchema = z.object({
 	slug: z.string(),
 	name: z.string(),
 	color: z.string(),
+
+	userId: z.string().uuid(),
 });
 
 export const upsertCategorySchema = categorySchema
