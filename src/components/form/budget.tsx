@@ -143,7 +143,9 @@ export const BudgetFormComponent: FC<Props> = ({ budget, disableTrigger }) => {
 				return;
 			}
 
-			const cycle: UpsertCycleSchema = enableCycle ? { period, end } : null;
+			const cycle: UpsertCycleSchema = enableCycle
+				? { period, end, userId: "00000000-0000-0000-0000-000000000000" }
+				: null;
 
 			await fetch("/api/budget", {
 				body: JSON.stringify({ ...data, cycle, id: budget?.id }),
